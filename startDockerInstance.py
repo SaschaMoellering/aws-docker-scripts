@@ -5,6 +5,7 @@ REGION = 'eu-west-1'
 AMI_ID = 'ami-892fe1fe'
 EC2_KEY_HANDLE = 'jenkins'
 INSTANCE_TYPE = 't2.micro'
+SECURITY_GROUPS = ['']
 
 def main(argv):
 
@@ -70,7 +71,7 @@ def start_ec2_instance(payload, quantity, tag, image):
                        image_id=AMI_ID,
                         key_name=EC2_KEY_HANDLE,
                         instance_type=INSTANCE_TYPE,
-                        security_groups = ['vertx'],
+                        security_groups = SECURITY_GROUPS,
                         block_device_map = bdm,
                         user_data=payload,
                         ebs_optimized=False)
