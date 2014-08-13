@@ -36,27 +36,27 @@ def main(argv):
     print 'Using tag ', tag
     print 'Using quantity ', quantity
 
-    payload = create_payload(registry=registry, image=image, tag=tag)
-    print 'User-Data: ', payload
+    user_data = create_user_data(registry=registry, image=image, tag=tag)
+    print 'User-Data: ', user_data
 
-    start_ec2_instance(payload, quantity, tag, image)
+    start_ec2_instance(user_data, quantity, tag, image)
 
 
-def create_payload(registry, image, tag):
+def create_user_data(registry, image, tag):
 
     fully_qualified_image = registry + "/" + image + ":" + tag
 
-    payload = '#!/bin/bash\n'
-    payload += 'yum update -y\n'
-    payload += 'yum install docker -y\n'
-    payload += 'service docker start\n'
-    payload += 'su -c "docker pull ' + fully_qualified_image + '"\n'
-    payload += 'su -c "docker run ' + fully_qualified_image + '"'
+    user_data = '#!/bin/bash\n'
+    user_data += 'yum update -y\n'
+    user_data += 'yum install docker -y\n'
+    user_data += 'service docker start\n'
+    user_data += 'su -c "docker pull ' + fully_qualified_image + '"\n'
+    user_data += 'su -c "docker run ' + fully_qualified_image + '"'
 
-    return payload
+    return user_data
 
 
-def start_ec2_instance(payload, quantity, tag, image):
+def start_ec2_instance(user_data, quantity, tag, image):
     conn = boto.ec2.connect_to_region(REGION)
 
     # Create a block device mapping
@@ -73,7 +73,7 @@ def start_ec2_instance(payload, quantity, tag, image):
                         instance_type=INSTANCE_TYPE,
                         security_groups = SECURITY_GROUPS,
                         block_device_map = bdm,
-                        user_data=payload,
+                        user_data=user_data,
                         ebs_optimized=False)
 
     instance_ids = []

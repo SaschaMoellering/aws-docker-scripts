@@ -1,9 +1,7 @@
 import boto.ec2
 
-from boto.ec2.elb import ELBConnection
 from boto.ec2.elb import HealthCheck
 
-from boto.ec2.autoscale import AutoScaleConnection
 from boto.ec2.autoscale import LaunchConfiguration
 from boto.ec2.autoscale import AutoScalingGroup
 from boto.ec2.autoscale import ScalingPolicy
@@ -61,48 +59,49 @@ def main(argv):
     print 'Using image ', image
     print 'Using tag ', tag
 
-    payload = create_payload(registry=registry, image=image, tag=tag)
-    print 'User-Data: ', payload
-    startElb(tag=tag, payload=payload)
+    user_data = create_user_data(registry=registry, image=image, tag=tag)
+    print 'User-Data: ', user_data
+    startElb(tag=image + "_" + tag, user_data=user_data)
 
     return 0
 
 
-def create_payload(registry, image, tag):
+def create_user_data(registry, image, tag):
 
     fully_qualified_image = registry + "/" + image + ":" + tag
 
-    payload = '#!/bin/bash\n'
-    payload += 'yum update -y\n'
-    payload += 'yum install docker -y\n'
-    payload += 'service docker start\n'
-    payload += 'su -c "docker pull ' + fully_qualified_image + '"\n'
-    payload += 'su -c "docker run ' + fully_qualified_image + '"'
+    user_data = '#!/bin/bash\n'
+    user_data += 'yum update -y\n'
+    user_data += 'yum install docker -y\n'
+    user_data += 'service docker start\n'
+    user_data += 'su -c "docker pull ' + fully_qualified_image + '"\n'
+    user_data += 'su -c "docker run ' + fully_qualified_image + '"'
 
-    return payload
+    return user_data
 
 
 def addInstancesToLb(tag, lb):
     ec2conn = boto.ec2.connect_to_region(region_name=REGION)
 
     reservations = ec2conn.get_all_instances(filters={"tag:application": tag});
-    instances = [i for r in reservations for i in r.instances]
+    instance_ids = [i.id for r in reservations for i in r.instances]
 
-    for inst in instances:
-        lb.register_instance(inst.id)
+    lb.register_instances(instance_ids)
 
 
-def startElb(tag, payload):
+def startElb(tag, user_data):
+    print "Using tag \"" + tag + "\""
     conn_reg = boto.ec2.connect_to_region(region_name=REGION)
     #=================Construct a list of all availability zones for your region=========
     zones = conn_reg.get_all_zones()
 
     zoneStrings = []
     for zone in zones:
+        print "Zone: " + zone.name
         zoneStrings.append(zone.name)
 
-    conn_elb = ELBConnection(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-    conn_as = AutoScaleConnection(AWS_ACCESS_KEY, AWS_SECRET_KEY)
+    conn_elb = boto.ec2.elb.connect_to_region(region_name=REGION)
+    conn_as = boto.ec2.autoscale.connect_to_region(region_name=REGION)
 
     #=================Create a Load Balancer=============================================
     #For a complete list of options see http://boto.cloudhackers.com/ref/ec2.html#module-boto.ec2.elb.healthcheck
@@ -111,10 +110,18 @@ def startElb(tag, payload):
                  target=elastic_load_balancer['health_check_target'],
                  timeout=elastic_load_balancer['timeout'])
 
-    #For a complete list of options see http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.elb.ELBConnection.create_load_balancer
-    lb = conn_elb.create_load_balancer(tag + '_elb',
-                                   zoneStrings,
-                                   elastic_load_balancer['connection_forwarding'])
+    elbTag = tag
+    elbTag = elbTag.replace("_", "")
+    elbTag = elbTag.replace("-", "")
+    elbTag = elbTag.replace(".", "")
+
+    print "ELB tag: \"" + elbTag + "\""
+
+    # For a complete list of options see
+    # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.elb.ELBConnection.create_load_balancer
+    lb = conn_elb.create_load_balancer(name=elbTag + 'Elb',
+                                   zones=zoneStrings,
+                                   listeners=elastic_load_balancer['connection_forwarding'])
 
     addInstancesToLb(tag, lb)
 
@@ -126,17 +133,18 @@ def startElb(tag, payload):
     #=================Create a Auto Scaling Group and a Launch Configuration=============================================
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.autoscale.launchconfig.LaunchConfiguration
-    lc = LaunchConfiguration(name=tag + "_lc", image_id=as_ami['id'],
+    lc = LaunchConfiguration(name=elbTag + "Lc", image_id=as_ami['id'],
                          key_name=as_ami['access_key'],
                          security_groups=as_ami['security_groups'],
                          instance_type=as_ami['instance_type'],
                          instance_monitoring=as_ami['instance_monitoring'],
-                         user_data=payload)
+                         user_data=user_data)
     conn_as.create_launch_configuration(lc)
 
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.autoscale.group.AutoScalingGroup
-    ag = AutoScalingGroup(group_name=tag + "_sg", load_balancers=[elastic_load_balancer['name']],
+    ag = AutoScalingGroup(group_name=elbTag + "Sg",
+                          load_balancers=[elbTag],
                       availability_zones=zoneStrings,
                       launch_config=lc, min_size=autoscaling_group['min_size'], max_size=autoscaling_group['max_size'])
     conn_as.create_auto_scaling_group(ag)
