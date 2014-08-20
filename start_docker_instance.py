@@ -1,14 +1,19 @@
 import boto.ec2
-import sys, getopt, time, copy
+import sys
+import getopt
+import time
+import copy
+import configuration
 
-REGION = 'eu-west-1'
-AMI_ID = 'ami-892fe1fe'
-EC2_KEY_HANDLE = 'jenkins'
-INSTANCE_TYPE = 't2.micro'
-SECURITY_GROUPS = ['']
+config_dict = configuration.Environment.aws_config["test"]
+ami_id = config_dict["ami_id"]
+ec2_key_handle = config_dict["ec2_key_handle"]
+instance_type = config_dict["instance_type"]
+security_groups = config_dict["security_groups"]
+region = config_dict["region"]
+
 
 def main(argv):
-
     registry = ''
     image = ''
     tag = ''
@@ -17,11 +22,11 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hr:i:t:q:", ["registry=", "image=", "tag=", "quantity="])
     except getopt.GetoptError:
-        print 'startDockerInstance.py -r <registry> -i <image> -t <tag> -q <quantity>'
+        print 'start_docker_instance.py -r <registry> -i <image> -t <tag> -q <quantity>'
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print 'startDockerInstance.py -r <registry> -i <image> -t <tag> -q <quantity>'
+            print 'start_docker_instance.py -r <registry> -i <image> -t <tag> -q <quantity>'
             sys.exit()
         elif opt in ("-r", "--registry"):
             registry = arg
@@ -36,45 +41,32 @@ def main(argv):
     print 'Using tag ', tag
     print 'Using quantity ', quantity
 
-    user_data = create_user_data(registry=registry, image=image, tag=tag)
+    user_data = configuration.create_user_data(registry=registry, image=image, tag=tag)
     print 'User-Data: ', user_data
 
     start_ec2_instance(user_data, quantity, tag, image)
 
 
-def create_user_data(registry, image, tag):
-
-    fully_qualified_image = registry + "/" + image + ":" + tag
-
-    user_data = '#!/bin/bash\n'
-    user_data += 'yum update -y\n'
-    user_data += 'yum install docker -y\n'
-    user_data += 'service docker start\n'
-    user_data += 'su -c "docker pull ' + fully_qualified_image + '"\n'
-    user_data += 'su -c "docker run ' + fully_qualified_image + '"'
-
-    return user_data
-
-
 def start_ec2_instance(user_data, quantity, tag, image):
-    conn = boto.ec2.connect_to_region(REGION)
+    conn = boto.ec2.connect_to_region(region)
 
     # Create a block device mapping
 
     dev_xvda = boto.ec2.blockdevicemapping.EBSBlockDeviceType()
     dev_xvda.size = 8  # size in Gigabytes
+    dev_xvda.delete_on_termination = True
     bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
     bdm['/dev/xvda'] = dev_xvda
 
     reservation = conn.run_instances(min_count=quantity,
-                       max_count=quantity,
-                       image_id=AMI_ID,
-                        key_name=EC2_KEY_HANDLE,
-                        instance_type=INSTANCE_TYPE,
-                        security_groups = SECURITY_GROUPS,
-                        block_device_map = bdm,
-                        user_data=user_data,
-                        ebs_optimized=False)
+                                     max_count=quantity,
+                                     image_id=ami_id,
+                                     key_name=ec2_key_handle,
+                                     instance_type=instance_type,
+                                     security_groups=security_groups,
+                                     block_device_map=bdm,
+                                     user_data=user_data,
+                                     ebs_optimized=False)
 
     instance_ids = []
     for instance in reservation.instances:
