@@ -172,15 +172,15 @@ def start_elb(tag, user_data):
     conn_as.create_scaling_policy(scaling_down_policy)
 
     scaling_up_policy = conn_as.get_all_policies(
-            as_group=elb_tag + "webserverScaleUpPolicy", policy_names=['scale_up'])[0]
+            as_group=elb_tag + "Sg", policy_names=[elb_tag + "webserverScaleUpPolicy"])[0]
     scaling_down_policy = conn_as.get_all_policies(
-            as_group=elb_tag + "webserverScaleDownPolicy", policy_names=['scale_down'])[0]
+            as_group=elb_tag + "Sg", policy_names=[elb_tag + "webserverScaleDownPolicy"])[0]
 
     cloudwatch = boto.ec2.cloudwatch.connect_to_region(region)
     alarm_dimensions = {"AutoScalingGroupName": 'my_group'}
 
     scale_up_alarm = MetricAlarm(
-            name='scale_up_on_cpu', namespace='AWS/EC2',
+            name=elb_tag + 'scale_up_on_cpu', namespace='AWS/EC2',
             metric='CPUUtilization', statistic='Average',
             comparison='>', threshold='70',
             period='60', evaluation_periods=2,
@@ -188,7 +188,7 @@ def start_elb(tag, user_data):
             dimensions=alarm_dimensions)
 
     scale_down_alarm = MetricAlarm(
-            name='scale_down_on_cpu', namespace='AWS/EC2',
+            name=elb_tag + 'scale_down_on_cpu', namespace='AWS/EC2',
             metric='CPUUtilization', statistic='Average',
             comparison='<', threshold='40',
             period='60', evaluation_periods=2,

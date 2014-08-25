@@ -29,7 +29,6 @@ def create_user_data(registry, image, tag):
     user_data += 'yum update -y\n'
     user_data += 'yum install docker -y\n'
     user_data += 'service docker start\n'
-    user_data += 'su -c "docker pull ' + fully_qualified_image + '"\n'
     user_data += 'su -c "docker run -p 8080:8080 -d ' + fully_qualified_image + '"'
 
     return user_data
