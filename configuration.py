@@ -22,14 +22,16 @@ class Environment():
     aws_config['test'] = test_config
 
 
-def create_user_data(registry, image, tag):
-    fully_qualified_image = registry + "/" + image + ":" + tag
+def create_user_data(registry, images, tag):
 
     user_data = '#!/bin/bash\n'
     user_data += 'yum update -y\n'
     user_data += 'yum install docker -y\n'
     user_data += 'service docker start\n'
-    user_data += 'su -c "docker run -p 8080:8080 -d ' + fully_qualified_image + '"'
+
+    for image in images:
+        fully_qualified_image = registry + "/" + image + ":" + tag
+        user_data += 'su -c "docker run -d ' + fully_qualified_image + '"\n'
 
     return user_data
 

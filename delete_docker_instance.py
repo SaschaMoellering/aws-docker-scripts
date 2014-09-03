@@ -59,10 +59,10 @@ def wait_for_instances_to_stop(conn, instance_ids, pending_ids):
         for instance in reservation.instances:
             print "State: " + instance.state
             if instance.state == 'terminated':
-                print "instance `{}` terminated!".format(instance.id)
+                print "instance `{" + instance.id + "}` terminated!"
                 pending_ids.pop(pending_ids.index(instance.id))
             else:
-                print "instance `{}` stopping...".format(instance.id)
+                print "instance `{" + instance.id + "}` stopping..."
     if len(pending_ids) == 0:
         print "all instances terminated!"
     else:

@@ -4,6 +4,7 @@ import getopt
 import time
 import copy
 import configuration
+import docker_library
 
 config_dict = configuration.Environment.aws_config["test"]
 ami_id = config_dict["ami_id"]
@@ -41,8 +42,10 @@ def main(argv):
     print 'Using tag ', tag
     print 'Using quantity ', quantity
 
-    user_data = configuration.create_user_data(registry=registry, image=image, tag=tag)
-    print 'User-Data: ', user_data
+    images_list = docker_library.search_images_in_registry(registry=registry, image_name=image)
+
+    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag)
+    print 'User-Data: \n', user_data
 
     start_ec2_instance(user_data, quantity, tag, image)
 
@@ -70,8 +73,9 @@ def start_ec2_instance(user_data, quantity, tag, image):
 
     instance_ids = []
     for instance in reservation.instances:
-        instance.add_tag('application', image + '_' + tag)
-        print "Tagging ip %s with tag %s" % (instance.__dict__['ip_address'], (image + '_' + tag))
+        ec2_tag = image + '_' + tag
+        instance.add_tag('application', ec2_tag)
+        print "Tagging instance id %s with tag %s" % (instance.id, ec2_tag)
         instance_ids.append(instance.id)
 
     wait_for_instances_to_start(conn, instance_ids, copy.deepcopy(instance_ids))
@@ -80,7 +84,7 @@ def start_ec2_instance(user_data, quantity, tag, image):
 
 
 def wait_for_instances_to_start(conn, instance_ids, pending_ids):
-    """Loop through all pending instace ids waiting for them to start.
+    """Loop through all pending instance ids waiting for them to start.
         If an instance is running, remove it from pending_ids.
         If there are still pending requests, sleep and check again in 10 seconds.
         Only return when all instances are running."""
@@ -88,10 +92,10 @@ def wait_for_instances_to_start(conn, instance_ids, pending_ids):
     for reservation in reservations:
         for instance in reservation.instances:
             if instance.state == 'running':
-                print "instance `{}` running!".format(instance.id)
+                print "instance `{" + instance.id + "}` running!"
                 pending_ids.pop(pending_ids.index(instance.id))
             else:
-                print "instance `{}` starting...".format(instance.id)
+                print "instance `{" + instance.id + "}` starting..."
     if len(pending_ids) == 0:
         print "all instances started!"
     else:

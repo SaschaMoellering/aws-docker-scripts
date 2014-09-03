@@ -12,6 +12,7 @@ import sys
 import getopt
 import os
 import configuration
+import docker_library
 
 config_dict = configuration.Environment.aws_config["test"]
 ami_id = config_dict["ami_id"]
@@ -73,8 +74,11 @@ def main(argv):
     print 'Using image ', image
     print 'Using tag ', tag
 
-    user_data = configuration.create_user_data(registry=registry, image=image, tag=tag)
-    print 'User-Data: ', user_data
+    images_list = docker_library.search_images_in_registry(registry=registry, image_name=image)
+
+    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag)
+
+    print 'User-Data: \n', user_data
     start_elb(tag=image + "_" + tag, user_data=user_data)
 
     return 0
@@ -112,6 +116,7 @@ def start_elb(tag, user_data):
                      target=elastic_load_balancer['health_check_target'],
                      timeout=elastic_load_balancer['timeout'])
 
+    # ELB does not accept any special characters
     elb_tag = tag
     elb_tag = elb_tag.replace("_", "")
     elb_tag = elb_tag.replace("-", "")
@@ -172,28 +177,36 @@ def start_elb(tag, user_data):
     conn_as.create_scaling_policy(scaling_down_policy)
 
     scaling_up_policy = conn_as.get_all_policies(
-            as_group=elb_tag + "Sg", policy_names=[elb_tag + "webserverScaleUpPolicy"])[0]
+        as_group=elb_tag + "Sg",
+        policy_names=[elb_tag + "webserverScaleUpPolicy"])[0]
     scaling_down_policy = conn_as.get_all_policies(
-            as_group=elb_tag + "Sg", policy_names=[elb_tag + "webserverScaleDownPolicy"])[0]
+        as_group=elb_tag + "Sg",
+        policy_names=[elb_tag + "webserverScaleDownPolicy"])[0]
 
     cloudwatch = boto.ec2.cloudwatch.connect_to_region(region)
     alarm_dimensions = {"AutoScalingGroupName": 'my_group'}
 
-    scale_up_alarm = MetricAlarm(
-            name=elb_tag + 'scale_up_on_cpu', namespace='AWS/EC2',
-            metric='CPUUtilization', statistic='Average',
-            comparison='>', threshold='70',
-            period='60', evaluation_periods=2,
-            alarm_actions=[scaling_up_policy.policy_arn],
-            dimensions=alarm_dimensions)
+    scale_up_alarm = MetricAlarm(name=elb_tag + 'scale_up_on_cpu',
+                                 namespace='AWS/EC2',
+                                 metric='CPUUtilization',
+                                 statistic='Average',
+                                 comparison='>',
+                                 threshold='70',
+                                 period='60',
+                                 evaluation_periods=2,
+                                 alarm_actions=[scaling_up_policy.policy_arn],
+                                 dimensions=alarm_dimensions)
 
-    scale_down_alarm = MetricAlarm(
-            name=elb_tag + 'scale_down_on_cpu', namespace='AWS/EC2',
-            metric='CPUUtilization', statistic='Average',
-            comparison='<', threshold='40',
-            period='60', evaluation_periods=2,
-            alarm_actions=[scaling_down_policy.policy_arn],
-            dimensions=alarm_dimensions)
+    scale_down_alarm = MetricAlarm(name=elb_tag + 'scale_down_on_cpu',
+                                   namespace='AWS/EC2',
+                                   metric='CPUUtilization',
+                                   statistic='Average',
+                                   comparison='<',
+                                   threshold='40',
+                                   period='60',
+                                   evaluation_periods=2,
+                                   alarm_actions=[scaling_down_policy.policy_arn],
+                                   dimensions=alarm_dimensions)
 
     cloudwatch.create_alarm(scale_down_alarm)
     cloudwatch.create_alarm(scale_up_alarm)
