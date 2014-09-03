@@ -31,7 +31,8 @@ def create_user_data(registry, images, tag):
 
     for image in images:
         fully_qualified_image = registry + "/" + image + ":" + tag
-        user_data += 'su -c "docker run -d ' + fully_qualified_image + '"\n'
+       	user_data += 'su -c "docker run -d -p 8080:8080 -p 80:80 ' + fully_qualified_image + '"\n'
+
 
     return user_data
 
