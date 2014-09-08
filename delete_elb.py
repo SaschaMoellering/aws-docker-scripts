@@ -41,7 +41,7 @@ def main(argv):
 
     delete_elb(image, tag)
 
-    return 0
+    sys.exit(0)
 
 
 def delete_elb(image, tag):
@@ -68,7 +68,11 @@ def delete_instances_from_lb(tag, lb):
     ec2conn = boto.ec2.connect_to_region(region_name=region)
 
     reservations = ec2conn.get_all_instances(filters={"tag:application": tag})
-    instance_ids = [i.id for r in reservations for i in r.instances]
+    instances = [i for r in reservations for i in r.instances]
+    instance_ids = []
+    for instance in instances:
+        if instance.state == 'running':
+            instance_ids.append(instance.id)
 
     lb.deregister_instances(instance_ids)
 

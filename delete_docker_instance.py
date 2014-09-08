@@ -37,19 +37,25 @@ def main(argv):
     print 'Using image ', image
     print 'Using tag ', tag
 
-    delete_instances(tag, image)
+    instance_ids = delete_instances(tag, image)
 
-    return 0
+    sys.stdout.write(''.join(instance_ids))
+    sys.exit(0)
 
 
 def delete_instances(tag, image):
     ec2conn = boto.ec2.connect_to_region(region_name=region)
 
     reservations = ec2conn.get_all_instances(filters={"tag:application": image + "_" + tag})
-    instance_ids = [i.id for r in reservations for i in r.instances]
+    instances = [i for r in reservations for i in r.instances]
+    instance_ids = []
+    for instance in instances:
+        if instance.state == 'running':
+            instance_ids.append(instance.id)
 
     ec2conn.terminate_instances(instance_ids)
     wait_for_instances_to_stop(ec2conn, instance_ids, copy.deepcopy(instance_ids))
+    return instance_ids
 
 
 def wait_for_instances_to_stop(conn, instance_ids, pending_ids):

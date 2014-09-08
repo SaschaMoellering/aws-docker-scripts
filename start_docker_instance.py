@@ -54,7 +54,10 @@ def main(argv):
     user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag)
     print 'User-Data: \n', user_data
 
-    start_ec2_instance(user_data, quantity, tag, image)
+    id_list = start_ec2_instance(user_data, quantity, tag, image)
+
+    sys.stdout.write(''.join(id_list))
+    sys.exit(0)
 
 
 def start_ec2_instance(user_data, quantity, tag, image):
@@ -92,7 +95,7 @@ def start_ec2_instance(user_data, quantity, tag, image):
 
     wait_for_instances_to_start(conn, instance_ids, copy.deepcopy(instance_ids))
 
-    return 0
+    return instance_ids
 
 
 def wait_for_instances_to_start(conn, instance_ids, pending_ids):

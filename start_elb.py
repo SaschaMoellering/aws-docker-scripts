@@ -84,16 +84,20 @@ def main(argv):
     print 'User-Data: \n', user_data
     start_elb(tag=image + "_" + tag, user_data=user_data)
 
-    return 0
+    sys.exit(0)
 
 
 def add_instances_to_lb(tag, lb):
     ec2conn = boto.ec2.connect_to_region(region_name=region)
 
-    print "Filtering instances for tag application => " + tag
+    print "Filtering running instances for tag application => " + tag
 
     reservations = ec2conn.get_all_instances(filters={"tag:application": tag})
-    instance_ids = [i.id for r in reservations for i in r.instances]
+    instances = [i for r in reservations for i in r.instances]
+    instance_ids = []
+    for instance in instances:
+        if instance.state == 'running':
+            instance_ids.append(instance.id)
 
     lb.register_instances(instance_ids)
 
@@ -130,7 +134,9 @@ def start_elb(tag, user_data):
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.elb.ELBConnection.create_load_balancer
     lb = conn_elb.create_load_balancer(name=elb_tag + 'Elb',
-                                       zones=zone_strings,
+                                       zones=None,
+                                       subnets=subnet_id,
+                                       security_groups=security_groups,
                                        listeners=elastic_load_balancer['connection_forwarding'])
 
     add_instances_to_lb(tag, lb)
@@ -157,7 +163,7 @@ def start_elb(tag, user_data):
 
     ag = AutoScalingGroup(group_name=elb_tag + "Sg",
                           load_balancers=[elb_tag],
-                          availability_zones=zone_strings,
+                          availability_zones=None,
                           launch_config=lc, min_size=autoscaling_group['min_size'],
                           max_size=autoscaling_group['max_size'],
                           associate_public_ip_address=public_ip_address,
