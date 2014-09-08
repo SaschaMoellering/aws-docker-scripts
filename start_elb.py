@@ -1,18 +1,18 @@
+import sys
+import getopt
+import os
+
 import boto.ec2
 import boto.ec2.cloudwatch
-
 from boto.ec2.elb import HealthCheck
-
 from boto.ec2.autoscale import LaunchConfiguration
 from boto.ec2.autoscale import AutoScalingGroup
 from boto.ec2.autoscale import ScalingPolicy
 from boto.ec2.cloudwatch import MetricAlarm
 
-import sys
-import getopt
-import os
 import configuration
 import docker_library
+
 
 config_dict = configuration.Environment.aws_config["test"]
 ami_id = config_dict["ami_id"]
@@ -20,6 +20,9 @@ ec2_key_handle = config_dict["ec2_key_handle"]
 instance_type = config_dict["instance_type"]
 security_groups = config_dict["security_groups"]
 region = config_dict["region"]
+subnet_id = config_dict["subnet_id"]
+public_ip_address = config_dict["public_ip_address"]
+iam_role = config_dict["iam_role"]
 
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
 AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
@@ -137,7 +140,7 @@ def start_elb(tag, user_data):
     # DNS name for your new load balancer
     print "Map the CNAME of your website to: %s" % lb.dns_name
 
-    #=================Create a Auto Scaling Group and a Launch Configuration============================================
+    # =================Create a Auto Scaling Group and a Launch Configuration============================================
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.autoscale.launchconfig.LaunchConfiguration
     lc = LaunchConfiguration(name=elb_tag + "Lc", image_id=as_ami['id'],
@@ -145,19 +148,23 @@ def start_elb(tag, user_data):
                              security_groups=as_ami['security_groups'],
                              instance_type=as_ami['instance_type'],
                              instance_monitoring=as_ami['instance_monitoring'],
+                             instance_profile_name=iam_role,
                              user_data=user_data)
     conn_as.create_launch_configuration(lc)
 
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.autoscale.group.AutoScalingGroup
+
     ag = AutoScalingGroup(group_name=elb_tag + "Sg",
                           load_balancers=[elb_tag],
                           availability_zones=zone_strings,
                           launch_config=lc, min_size=autoscaling_group['min_size'],
-                          max_size=autoscaling_group['max_size'])
+                          max_size=autoscaling_group['max_size'],
+                          associate_public_ip_address=public_ip_address,
+                          vpc_zone_identifier=[subnet_id])
     conn_as.create_auto_scaling_group(ag)
 
-    #=================Create Scaling Policies=============================================
+    # =================Create Scaling Policies=============================================
     # Policy for scaling the number of servers up and down
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.autoscale.policy.ScalingPolicy

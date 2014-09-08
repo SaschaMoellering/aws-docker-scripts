@@ -1,5 +1,6 @@
 import requests
 
+
 def search_images_in_registry(registry, image_name):
     resp = requests.get('http://' + registry + '/v1/search?q=' + image_name)
 

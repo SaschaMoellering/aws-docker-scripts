@@ -1,9 +1,12 @@
-import boto.ec2
 import sys
 import getopt
 import time
 import copy
+
+import boto.ec2
+
 import configuration
+
 
 config_dict = configuration.Environment.aws_config["test"]
 region = config_dict["region"]

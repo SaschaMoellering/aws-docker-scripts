@@ -1,10 +1,6 @@
-import boto.ec2
-import boto.route53
 import sys
 import getopt
-import time
 import os
-import boto.ec2.elb
 
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
 AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']

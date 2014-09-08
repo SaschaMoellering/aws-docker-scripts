@@ -1,10 +1,14 @@
-import boto.ec2
 import sys
 import getopt
 import time
 import copy
+
+import boto.ec2
+import boto.ec2.networkinterface
+
 import configuration
 import docker_library
+
 
 config_dict = configuration.Environment.aws_config["test"]
 ami_id = config_dict["ami_id"]
@@ -12,6 +16,9 @@ ec2_key_handle = config_dict["ec2_key_handle"]
 instance_type = config_dict["instance_type"]
 security_groups = config_dict["security_groups"]
 region = config_dict["region"]
+subnet_id = config_dict["subnet_id"]
+public_ip_address = config_dict["public_ip_address"]
+iam_role = config_dict["iam_role"]
 
 
 def main(argv):
@@ -61,14 +68,19 @@ def start_ec2_instance(user_data, quantity, tag, image):
     bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
     bdm['/dev/xvda'] = dev_xvda
 
+    interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet_id,
+                                                                        groups=security_groups,
+                                                                        associate_public_ip_address=public_ip_address)
+    interfaces = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
     reservation = conn.run_instances(min_count=quantity,
                                      max_count=quantity,
                                      image_id=ami_id,
                                      key_name=ec2_key_handle,
                                      instance_type=instance_type,
-                                     security_groups=security_groups,
                                      block_device_map=bdm,
                                      user_data=user_data,
+                                     instance_profile_name=iam_role,
+                                     network_interfaces=interfaces,
                                      ebs_optimized=False)
 
     instance_ids = []

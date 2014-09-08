@@ -1,12 +1,13 @@
+import sys
+import getopt
+
 import boto.ec2
 import boto.ec2.cloudwatch
-
 from boto.ec2.elb import HealthCheck
 from boto.ec2.autoscale import ScalingPolicy
 
-import sys
-import getopt
 import configuration
+
 
 config_dict = configuration.Environment.aws_config["test"]
 ami_id = config_dict["ami_id"]
