@@ -23,9 +23,10 @@ region = config_dict["region"]
 subnet_id = config_dict["subnet_id"]
 public_ip_address = config_dict["public_ip_address"]
 iam_role = config_dict["iam_role"]
+zone_strings = config_dict["availability_zones"]
 
-AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
-AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
+#AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
+#AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
 
 elastic_load_balancer = {
     'health_check_target': 'HTTP:8080/index.html',  # Location to perform health checks
@@ -106,12 +107,6 @@ def start_elb(tag, user_data):
     print "Using tag \"" + tag + "\""
     conn_reg = boto.ec2.connect_to_region(region_name=region)
     # =================Construct a list of all availability zones for your region=========
-    zones = conn_reg.get_all_zones()
-
-    zone_strings = []
-    for zone in zones:
-        print "Zone: " + zone.name
-        zone_strings.append(zone.name)
 
     conn_elb = boto.ec2.elb.connect_to_region(region_name=region)
     conn_as = boto.ec2.autoscale.connect_to_region(region_name=region)
@@ -163,11 +158,11 @@ def start_elb(tag, user_data):
 
     ag = AutoScalingGroup(group_name=elb_tag + "Sg",
                           load_balancers=[elb_tag],
-                          availability_zones=None,
+                          availability_zones=zone_strings,
                           launch_config=lc, min_size=autoscaling_group['min_size'],
                           max_size=autoscaling_group['max_size'],
                           associate_public_ip_address=public_ip_address,
-                          vpc_zone_identifier=[subnet_id])
+                          vpc_zone_identifier=subnet_id)
     conn_as.create_auto_scaling_group(ag)
 
     # =================Create Scaling Policies=============================================

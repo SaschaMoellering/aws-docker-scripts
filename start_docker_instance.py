@@ -70,30 +70,41 @@ def start_ec2_instance(user_data, quantity, tag, image):
     dev_xvda.delete_on_termination = True
     bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
     bdm['/dev/xvda'] = dev_xvda
-
-    interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet_id,
-                                                                        groups=security_groups,
-                                                                        associate_public_ip_address=public_ip_address)
-    interfaces = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-    reservation = conn.run_instances(min_count=quantity,
-                                     max_count=quantity,
-                                     image_id=ami_id,
-                                     key_name=ec2_key_handle,
-                                     instance_type=instance_type,
-                                     block_device_map=bdm,
-                                     user_data=user_data,
-                                     instance_profile_name=iam_role,
-                                     network_interfaces=interfaces,
-                                     ebs_optimized=False)
-
     instance_ids = []
-    for instance in reservation.instances:
-        ec2_tag = image + '_' + tag
-        instance.add_tag('application', ec2_tag)
-        print "Tagging instance id %s with tag %s" % (instance.id, ec2_tag)
-        instance_ids.append(instance.id)
+    counter = 0
 
-    wait_for_instances_to_start(conn, instance_ids, copy.deepcopy(instance_ids))
+    num_subnets = len(subnet_id)
+    if quantity % num_subnets != 0:
+        print "Can't distribute the number of instances equally between AZs"
+        sys.exit(1)
+
+    for subnet in subnet_id:
+
+        print "Using subnet " + subnet
+        interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet,
+                                                                            groups=security_groups,
+                                                                            associate_public_ip_address=public_ip_address)
+        interfaces = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
+        reservation = conn.run_instances(min_count=quantity/num_subnets,
+                                         max_count=quantity/num_subnets,
+                                         image_id=ami_id,
+                                         key_name=ec2_key_handle,
+                                         instance_type=instance_type,
+                                         block_device_map=bdm,
+                                         user_data=user_data,
+                                         instance_profile_name=iam_role,
+                                         network_interfaces=interfaces,
+                                         ebs_optimized=False)
+
+        for instance in reservation.instances:
+            ec2_tag = image + '_' + tag
+            instance.add_tag('application', ec2_tag)
+            print "Tagging instance id %s with tag %s" % (instance.id, ec2_tag)
+            instance_ids.append(instance.id)
+
+        wait_for_instances_to_start(conn, instance_ids, copy.deepcopy(instance_ids))
+
+        counter += 1
 
     return instance_ids
 

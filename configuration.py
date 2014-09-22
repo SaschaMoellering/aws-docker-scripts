@@ -2,23 +2,27 @@ class Environment():
     aws_config = {}
     live_config = {"region": "eu-west-1", "ami_id": "ami-892fe1fe",
                    "ec2_key_handle": "", "instance_type": "t2.micro",
-                   "security_groups": ['sg-'], "subnet_id": "subnet-",
-                   "public_ip_address": False, "iam_role": ""}
+                   "security_groups": [''], "subnet_id": [''],
+                   "public_ip_address": False, "iam_role": "kinesis_cloudwatch_access",
+                   "availability_zones": ['eu-west-1a', 'eu-west-1b']}
 
     quality_config = {"region": "eu-west-1", "ami_id": "ami-892fe1fe",
                       "ec2_key_handle": "", "instance_type": "t2.micro",
-                      "security_groups": ['sg-'], "subnet_id": "subnet-",
-                      "public_ip_address": False, "iam_role": ""}
+                      "security_groups": [''], "subnet_id": [''],
+                      "public_ip_address": False, "iam_role": "kinesis_cloudwatch_access",
+                      "availability_zones": ['eu-west-1a', 'eu-west-1b']}
 
     staging_config = {"region": "eu-west-1", "ami_id": "ami-892fe1fe",
                       "ec2_key_handle": "", "instance_type": "t2.micro",
-                      "security_groups": ['sg-'], "subnet_id": "subnet-",
-                      "public_ip_address": True, "iam_role": ""}
+                      "security_groups": [''], "subnet_id": [''],
+                      "public_ip_address": True, "iam_role": "kinesis_cloudwatch_access,
+                      "availability_zones": ['eu-west-1a', 'eu-west-1b']}
 
     test_config = {"region": "eu-west-1", "ami_id": "ami-892fe1fe",
                    "ec2_key_handle": "", "instance_type": "t2.micro",
-                   "security_groups": ['sg-'], "subnet_id": "subnet-",
-                   "public_ip_address": True, "iam_role": ""}
+                   "security_groups": [''], "subnet_id": [''],
+                   "public_ip_address": True, "iam_role": "kinesis_cloudwatch_access",
+                   "availability_zones": ['eu-west-1a', 'eu-west-1b']}
 
     aws_config['live'] = live_config
     aws_config['quality'] = quality_config
