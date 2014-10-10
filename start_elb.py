@@ -54,18 +54,20 @@ as_ami = {
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "hr:i:t:", ["registry=", "image=", "tag="])
+        opts, args = getopt.getopt(argv, "hr:i:t:", ["registry=", "image=", "tag=", "stage=", "dockerrun="])
     except getopt.GetoptError:
-        print 'start_elb.py -r <registry> -i <image> -t <tag>'
+        print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <dockerrun>'
         sys.exit(2)
 
     registry = ''
     image = ''
     tag = ''
+    stage = ''
+    dockerrun = ''
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'start_elb.py -r <registry> -i <image> -t <tag>'
+            print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <dockerrun>'
             sys.exit()
         elif opt in ("-r", "--registry"):
             registry = arg
@@ -73,14 +75,20 @@ def main(argv):
             image = arg
         elif opt in ("-t", "--tag"):
             tag = arg
+        elif opt in ("-t", "--tag"):
+            stage = arg
+        elif opt in ("-d", "--dockerrun"):
+            dockerrun = arg
 
     print 'Using registry ', registry
     print 'Using image ', image
     print 'Using tag ', tag
+    print 'Using stage ', stage
+    print 'Using dockerrun ', dockerrun
 
     images_list = docker_library.search_images_in_registry(registry=registry, image_name=image)
 
-    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag)
+    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag, stage=stage, dockerrun=dockerrun)
 
     print 'User-Data: \n', user_data
     start_elb(tag=image + "_" + tag, user_data=user_data)

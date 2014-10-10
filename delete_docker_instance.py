@@ -53,8 +53,12 @@ def delete_instances(tag, image):
         if instance.state == 'running':
             instance_ids.append(instance.id)
 
-    ec2conn.terminate_instances(instance_ids)
-    wait_for_instances_to_stop(ec2conn, instance_ids, copy.deepcopy(instance_ids))
+    if len(instance_ids) > 0:
+        ec2conn.terminate_instances(instance_ids)
+        wait_for_instances_to_stop(ec2conn, instance_ids, copy.deepcopy(instance_ids))
+    else:
+        print "No instances found for tag:application with value:" + (image + "_" + tag)
+
     return instance_ids
 
 
