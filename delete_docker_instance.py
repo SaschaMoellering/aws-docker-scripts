@@ -8,23 +8,20 @@ import boto.ec2
 import configuration
 
 
-config_dict = configuration.Environment.aws_config["test"]
-region = config_dict["region"]
-
-
 def main(argv):
     registry = ''
     image = ''
     tag = ''
+    region = ''
 
     try:
-        opts, args = getopt.getopt(argv, "hr:i:t:", ["registry=", "image=", "tag="])
+        opts, args = getopt.getopt(argv, "hr:i:t:g:", ["registry=", "image=", "tag=", "region="])
     except getopt.GetoptError:
-        print 'delete_docker_instance.py -r <registry> -i <image> -t <tag>'
+        print 'delete_docker_instance.py -r <registry> -i <image> -t <tag> -g <region>'
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print 'start_docker_instance.py -r <registry> -i <image> -t <tag>'
+            print 'start_docker_instance.py -r <registry> -i <image> -t <tag> -g <region>'
             sys.exit()
         elif opt in ("-r", "--registry"):
             registry = arg
@@ -32,18 +29,24 @@ def main(argv):
             image = arg
         elif opt in ("-t", "--tag"):
             tag = arg
+        elif opt in ("-g", "--region"):
+            region = arg
 
     print 'Using registry ', registry
     print 'Using image ', image
     print 'Using tag ', tag
+    print 'Using region ', region
 
-    instance_ids = delete_instances(tag, image)
+    instance_ids = delete_instances(tag, image, region)
 
     sys.stdout.write(''.join(instance_ids))
     sys.exit(0)
 
 
-def delete_instances(tag, image):
+def delete_instances(tag, image, region):
+
+    # Searching for EC2 instances using tags
+
     ec2conn = boto.ec2.connect_to_region(region_name=region)
 
     reservations = ec2conn.get_all_instances(filters={"tag:application": image + "_" + tag})
@@ -52,6 +55,8 @@ def delete_instances(tag, image):
     for instance in instances:
         if instance.state == 'running':
             instance_ids.append(instance.id)
+
+    # Terminates running instances
 
     if len(instance_ids) > 0:
         ec2conn.terminate_instances(instance_ids)

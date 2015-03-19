@@ -1,6 +1,5 @@
 import sys
 import getopt
-import os
 
 import boto.ec2
 import boto.ec2.cloudwatch
@@ -11,63 +10,37 @@ from boto.ec2.autoscale import ScalingPolicy
 from boto.ec2.cloudwatch import MetricAlarm
 
 import configuration
-import docker_library
+import aws_library
 
-
-config_dict = configuration.Environment.aws_config["test"]
-ami_id = config_dict["ami_id"]
-ec2_key_handle = config_dict["ec2_key_handle"]
-instance_type = config_dict["instance_type"]
-security_groups = config_dict["security_groups"]
-region = config_dict["region"]
-subnet_id = config_dict["subnet_id"]
-public_ip_address = config_dict["public_ip_address"]
-iam_role = config_dict["iam_role"]
-zone_strings = config_dict["availability_zones"]
-
-#AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
-#AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
-
-elastic_load_balancer = {
-    'health_check_target': 'HTTP:8080/index.html',  # Location to perform health checks
-    'connection_forwarding': [(80, 8080, 'http'), (443, 8443, 'tcp')],
-    # [Load Balancer Port, EC2 Instance Port, Protocol]
-    'timeout': 3,  # Number of seconds to wait for a response from a ping
-    'interval': 20  # Number of seconds between health checks
-}
 
 autoscaling_group = {
-    'min_size': 2,  # Minimum number of instances that should be running at all times
-    'max_size': 3  # Maximum number of instances that should be running at all times
-}
-
-# =================AMI to launch======================================================
-as_ami = {
-    'id': ami_id,  # The AMI ID of the instance your Auto Scaling group will launch
-    'access_key': ec2_key_handle,  # The key the EC2 instance will be configured with
-    'security_groups': security_groups,  # The security group(s) your instances will belong to
-    'instance_type': instance_type,  # The size of instance that will be launched
-    'instance_monitoring': True  # Indicated whether the instances will be launched with detailed monitoring enabled.
-    # Needed to enable CloudWatch
+    'min_size': 6,  # Minimum number of instances that should be running at all times
+    'max_size': 12  # Maximum number of instances that should be running at all times
 }
 
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "hr:i:t:", ["registry=", "image=", "tag=", "stage=", "dockerrun="])
+        opts, args = getopt.getopt(argv, "hr:i:t:s:d:g:a:c:g:", ["registry=", "image=", "tag=", "stage=", "docker_run=",
+                                                              "region=", "auto_register=", "health_check="])
     except getopt.GetoptError:
-        print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <dockerrun>'
+        print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <docker_run> -g <region> -a <auto_register>' \
+              ' -c <health_check>'
         sys.exit(2)
 
     registry = ''
     image = ''
     tag = ''
     stage = ''
-    dockerrun = ''
+    docker_run = ''
+    region = ''
+    auto_register = False
+    health_check = ''
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <dockerrun>'
+            print 'start_elb.py -r <registry> -i <image> -t <tag> -s <stage> -d <docker_run> -a <auto_register>' \
+                  ' -c <health_check> -g <region>'
             sys.exit()
         elif opt in ("-r", "--registry"):
             registry = arg
@@ -75,43 +48,69 @@ def main(argv):
             image = arg
         elif opt in ("-t", "--tag"):
             tag = arg
-        elif opt in ("-t", "--tag"):
+        elif opt in ("-s", "--stage"):
             stage = arg
-        elif opt in ("-d", "--dockerrun"):
-            dockerrun = arg
+        elif opt in ("-d", "--docker_run"):
+            docker_run = arg
+        elif opt in ("-g", "--region"):
+            region = arg
+        elif opt in ("-a", "--autoregister"):
+            auto_register = aws_library.str_to_bool(arg)
+        elif opt in ("-c", "--health_check"):
+            health_check = arg
 
     print 'Using registry ', registry
     print 'Using image ', image
     print 'Using tag ', tag
     print 'Using stage ', stage
-    print 'Using dockerrun ', dockerrun
+    print 'Using region ', region
+    print 'Using docker_run ', docker_run
+    print 'Using auto_register {0}'.format(auto_register)
+    print 'Using health check path {0}'.format(health_check)
 
-    images_list = docker_library.search_images_in_registry(registry=registry, image_name=image)
+    config_dict = configuration.Environment.aws_config[region][stage]
+    ami_id = aws_library.get_latest_ami(region, config_dict["ami_id"])
+    print "Using AMI {0}".format(ami_id)
+    ec2_key_handle = config_dict["ec2_key_handle"]
+    instance_type = config_dict["instance_type"]
+    security_groups = config_dict["security_groups"]
+    subnet_id = config_dict["subnet_id"]
+    public_ip_address = config_dict["public_ip_address"]
+    iam_role = config_dict["iam_role"]
+    zone_strings = config_dict["availability_zones"]
 
-    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag, stage=stage, dockerrun=dockerrun)
+    as_ami = {
+        'id': ami_id,  # The AMI ID of the instance your Auto Scaling group will launch
+        'access_key': ec2_key_handle,  # The key the EC2 instance will be configured with
+        'security_groups': security_groups,  # The security group(s) your instances will belong to
+        'instance_type': instance_type,  # The size of instance that will be launched
+        'instance_monitoring': True  # Indicated whether the instances will be launched with detailed monitoring enabled.
+    }
+
+    elastic_load_balancer = {
+        'health_check_target': 'HTTP:8080/{0}'.format(health_check),  # Location to perform health checks
+        'connection_forwarding': [(80, 8080, 'http'), (443, 8443, 'tcp')],
+        # [Load Balancer Port, EC2 Instance Port, Protocol]
+        'timeout': 3,  # Number of seconds to wait for a response from a ping
+        'interval': 20  # Number of seconds between health checks
+    }
+
+    images_list = aws_library.search_images_in_registry(registry=registry, image_name=image)
+
+    dockerrun_dict = aws_library.convert_to_dict(dockerrun=docker_run, image_name=image)
+    user_data = configuration.create_user_data(registry=registry, images=images_list, tag=tag, stage=stage,
+                                               dockerrun=dockerrun_dict)
 
     print 'User-Data: \n', user_data
-    start_elb(tag=image + "_" + tag, user_data=user_data)
+    start_elb(tag=image + "_" + tag, user_data=user_data, region=region, auto_register=auto_register, as_ami=as_ami,
+              subnet_id=subnet_id, security_groups=security_groups, public_ip_address=public_ip_address,
+              iam_role=iam_role, zone_strings=zone_strings, elastic_load_balancer=elastic_load_balancer)
 
     sys.exit(0)
 
 
-def add_instances_to_lb(tag, lb):
-    ec2conn = boto.ec2.connect_to_region(region_name=region)
-
-    print "Filtering running instances for tag application => " + tag
-
-    reservations = ec2conn.get_all_instances(filters={"tag:application": tag})
-    instances = [i for r in reservations for i in r.instances]
-    instance_ids = []
-    for instance in instances:
-        if instance.state == 'running':
-            instance_ids.append(instance.id)
-
-    lb.register_instances(instance_ids)
-
-
-def start_elb(tag, user_data):
+def start_elb(tag, user_data, region, auto_register, as_ami, subnet_id, security_groups, public_ip_address, iam_role,
+              zone_strings, elastic_load_balancer):
     print "Using tag \"" + tag + "\""
     conn_reg = boto.ec2.connect_to_region(region_name=region)
     # =================Construct a list of all availability zones for your region=========
@@ -132,7 +131,7 @@ def start_elb(tag, user_data):
     elb_tag = elb_tag.replace("-", "")
     elb_tag = elb_tag.replace(".", "")
 
-    print "ELB tag: \"" + elb_tag + "\""
+    print "ELB name: \"" + elb_tag + "\""
 
     # For a complete list of options see
     # http://boto.cloudhackers.com/ref/ec2.html#boto.ec2.elb.ELBConnection.create_load_balancer
@@ -142,7 +141,8 @@ def start_elb(tag, user_data):
                                        security_groups=security_groups,
                                        listeners=elastic_load_balancer['connection_forwarding'])
 
-    add_instances_to_lb(tag, lb)
+    if auto_register:
+        aws_library.add_instances_to_lb(tag=tag, lb=lb, region=region)
 
     lb.configure_health_check(hc)
 
@@ -181,7 +181,7 @@ def start_elb(tag, user_data):
                                       adjustment_type='ChangeInCapacity',
                                       as_name=ag.name,
                                       scaling_adjustment=1,
-                                      cooldown=180)
+                                      cooldown=60)
 
     scaling_down_policy = ScalingPolicy(name=elb_tag + "webserverScaleDownPolicy",
                                         adjustment_type='ChangeInCapacity',
